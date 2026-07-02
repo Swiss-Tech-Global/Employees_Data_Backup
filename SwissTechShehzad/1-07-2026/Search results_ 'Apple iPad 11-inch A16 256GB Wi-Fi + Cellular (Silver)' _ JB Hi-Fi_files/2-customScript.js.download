@@ -1,0 +1,341 @@
+/**
+ * Functionality to open a different chat theme
+ */
+!function ($) {
+
+	//the chat theme ids for when VA task is active.
+	let AUChatThemeId = 42;
+	let NZChatThemeId = 13;
+
+	// the event labels for when VA task is active to set the required chat themes.
+	let auEventToSetTheme = "setRequestTheme";
+	let nzEventToSetTheme = "setRequestThemeNZ";
+
+	// the event labels for when VA task is active to remove the flag.
+	let auEventToRemoveFlag = "removeAURequestFlag";
+	let nzEventToRemoveFlag = "removeNZRequestFlag";
+
+	// check if the site is the AU site.
+	let isAuSite = window.location.hostname.includes(".com.au");
+
+	let eventNameToSetTheme = isAuSite ? auEventToSetTheme : nzEventToSetTheme;
+	let chatThemeIdToSetTheme = isAuSite ? AUChatThemeId : NZChatThemeId;
+	let eventNameToRemoveFlag = isAuSite ? auEventToRemoveFlag : nzEventToRemoveFlag;
+
+	window.addEventListener('pageshow', function (event) {
+		// Check if the page was restored from the Back-Forward Cache
+		if (event.persisted) {
+			// The page was loaded from the bfcache.
+			console.log("The page was loaded from the bfcache.")
+			restartConnection();
+		} else {
+			// This was a regular page load.
+		}
+	});
+
+	/**
+	 * Function to stop current VA / chat and restart Inside connection 
+	 */
+	insideFrontInterface.restartConnection = restartConnection;
+	function restartConnection() {
+		// stop current VA
+		if (typeof insideChatPane !== 'undefined') {
+			const insideWorkflows = insideChatPane.frame.contentWindow.insideWorkflows;
+			if (insideWorkflows.currentWorkflow) {
+				insideWorkflows.cancelWorkflowFromServer(insideWorkflows.currentWorkflow.workflowId);
+			}
+		}
+
+		// stop current chat
+		if (insideFrontInterface.currentChatId) {
+			$.inside.server.stopChat(insideFrontInterface.currentChatId);
+			insideChatPane.showStartANewChatButton();
+		}
+
+		insideFrontInterface.disconnectSignalr();
+
+		if (!insideFrontInterface.currentChatId && insideFrontInterface.lastMessageOperatorId) {
+			insideAPI.post('/api/visitor/conversation/stopproactive', {}, function() {
+				insideFrontInterface.lastMessageOperatorId = '';
+				setTimeout(tryToReconnect, 1000);
+			});
+		} else {
+			setTimeout(tryToReconnect, 1000);
+		}
+	}
+
+	function tryToReconnect() {
+		insideFrontInterface.connectSignalr();
+		if (_insideGraph.jQuery.inside.isDisconnected()) {
+			setTimeout(tryToReconnect, 2000);
+		}
+	}
+
+	function triggerEvent(name) {
+		insideFrontInterface.triggerVisitorEvent(name);
+	}
+
+	insideFrontInterface.showRequestFormTheme = function () {
+		if (insideFrontInterface.chatSettings?.name.includes('Request Form')) {
+			insideFrontInterface.openChatPane();
+			return;
+		}
+
+		triggerEvent('remove_straight_to_op');
+		triggerEvent('add_request_form');
+		restartConnection();
+		reOpenChatPane();
+
+	};
+
+	insideFrontInterface.straightToOperator = function () {
+		if (insideFrontInterface.chatSettings?.name.includes('Straight to Op')) {
+			insideFrontInterface.openChatPane();
+			return;
+		}
+
+		triggerEvent('remove_request_form');
+		triggerEvent('add_straight_to_op');
+		restartConnection();
+		try {
+			insideChatPane.chatPaneContent.innerHTML = '';
+		} catch (error) { }
+		reOpenChatPane();
+	};
+
+	function reOpenChatPane() {
+		// close existing chat pane
+		if (typeof insideChatPane !== 'undefined' && insideChatPane.isOpen()) {
+			insideChatPane.close();
+		}
+
+		insidePreChatForm.prechatFilled = false;
+		// open chat pane and trigger the prechat/offline VA
+		_insideGraph.defer(function () {
+			setTimeout(insideFrontInterface.openChatPane, 1000);
+			setTimeout(insideFrontInterface.openChatPane, 5000);
+		}, function () {
+			return insideFrontInterface.chatSettings?.name.includes('JB Hi-Fi') === false && _insideGraph.jQuery.inside.isConnected();
+		});
+	}
+
+	insideFrontInterface.resetTheme = resetTheme;
+	function resetTheme() {
+		triggerEvent('remove_request_form');
+		triggerEvent('remove_straight_to_op');
+		restartConnection();
+		// trigger the prechat/offline VA
+		_insideGraph.defer(function () {
+			//clear the chat pane content, disabled for now.
+			//insideChatPane.chatPaneContent.innerHTML = '';
+			insideChatPane.showStartANewChatButton();
+		}, function () {
+			return insideFrontInterface.chatSettings?.name.includes('JB Hi-Fi');
+		});
+	}
+
+	/**
+	 * reset the flag on chat ended event
+	 */
+	_insideGraph.bind('chatended', function () {
+		if (insideFrontInterface.chatSettings?.name.includes('JB Hi-Fi') === false) {
+			resetTheme();
+		}
+	});
+
+	/**
+	 * JB-HIFI custom function to start a VA task from a button click.
+	 * Displays a notification to the user asking if they want to end the current conversation
+	 * and start a new VA (Virtual Assistant) task (Request Form). If there is no active conversation,
+	 * it directly starts the VA task. If there is an active conversation, it prompts the user for confirmation.
+	 * On confirmation, it ends the current chat and triggers the VA workflow.
+	 *
+	 * @param {string} taskId - The ID of the VA task to start.
+	 * @param {string} eventId - The ID of the event to trigger.
+	 */
+
+	var endingChatAndStartingVA = false; //if true, don't do the endChat check
+	insideFrontInterface.startVaTask = startVaTask;
+
+	function startVaTask(taskId, eventName) {
+		let hasActiveConversation = insideFrontInterface.currentChatId > 0;
+
+
+		if (typeof insideChatPane == "undefined") {
+			insideFrontInterface.openChatPane(true, function () {
+				startVaTask(taskId, eventName)
+			});
+			return;
+		} else {
+			insideChatPane.open();
+		}
+
+		if (hasActiveConversation) {
+			//chatting with a bot, or ch:, not human op.
+			let isChatWithBot = insideChatPane.chatPane.classList.contains("botchat");
+			//check available assistants
+			let availableAssistants = insideChatPane.getAvailableAssistants();
+			if (availableAssistants.length == 0) {
+				isChatWithBot = true;
+			}
+
+			if (!isChatWithBot) {
+				for (var i = 0; i < availableAssistants.length; i++) {
+					if (availableAssistants[i].botId) {
+						//ch: operator, not human op.
+						isChatWithBot = true;
+					}
+				}
+			}
+
+			let allOpsAreChannels = false;
+			for (var i = 0; i < availableAssistants.length; i++) {
+				if (availableAssistants[i].id.indexOf("ch:") == 0) {
+					allOpsAreChannels = true;
+				} else {
+					allOpsAreChannels = false;
+					break;
+				}
+			}
+
+			if (!isChatWithBot && !allOpsAreChannels) {
+				//it's a chat with a human operator, do nothing.
+				console.log("There's an ongoing chat with a human operator, VA task not started.");
+				return;
+			}
+
+			let notif = insideChatPane.showNotification(
+				"Would you like to end this chat and start a new request?",
+				"jbform",
+				false, true, false,
+				function () {
+					//close click
+				},
+				"Yes",
+				function () {
+					//remove old VA task messages
+					//$(document).find(".message").remove();
+
+					endingChatAndStartingVA = true;
+					setTimeout(function () {
+						endingChatAndStartingVA = false;
+					}, 5000);
+					console.log("button click");
+					if (!taskId) return;
+					//end conversation
+
+					_insideGraph.jQuery.inside.server.stopChat(insideFrontInterface.currentChatId);
+					insideChatPane.endChat();
+
+					//trigger an event, eg to get a specific chat theme
+					if (!eventName) {
+						eventName = eventNameToSetTheme;
+					}
+					if (insideFrontInterface.chatSettings.chatSettingsId != chatThemeIdToSetTheme) { //chatThemeIdToSetTheme is the id of the required chat theme
+						//trigger event to set the chat theme
+						insideFrontInterface.triggerVisitorEvent(eventName || eventNameToSetTheme, function () {
+							//trigger a workflow (VA task)
+							runVaTask();
+						});
+					} else {
+						runVaTask();
+					}
+
+					insideChatPane.removeNotification("jbform");
+				}
+			);
+
+			if (!notif) return;
+
+			let bubble = notif.querySelector(".bubble");
+			let okButton = notif.querySelector(".button");
+
+			let buttonContainer = document.createElement("div");
+			buttonContainer.className = "buttonContainer";
+			bubble.appendChild(buttonContainer);
+
+			let cancelButton = document.createElement("div");
+			cancelButton.className = "button";
+			cancelButton.innerText = "No";
+			cancelButton.addEventListener("click", function () {
+				notif.close();
+			});
+
+			buttonContainer.appendChild(okButton);
+			buttonContainer.appendChild(cancelButton);
+
+		} else {
+			if (insideFrontInterface.chatSettings.chatSettingsId != chatThemeIdToSetTheme) { //chatThemeIdToSetTheme is the AU id of the required chat theme
+				//trigger event to set the chat theme
+				insideFrontInterface.triggerVisitorEvent(eventName || eventNameToSetTheme, function () {
+					runVaTask();
+				});
+			} else {
+				runVaTask();
+			}
+
+		}
+
+		function runVaTask() {
+			insideChatPane.open();
+			insideAPI.post("api/workflow/StartWorkflow", {
+				workflowId: taskId,
+				force: true,
+				offlineTask: 'leaveAMessageButton'
+			}, function (response) {
+				if (response == null) {
+					//chat has not ended?
+					if (insideFrontInterface.currentChatId) {
+						_insideGraph.jQuery.inside.server.stopChat(insideFrontInterface.currentChatId);
+						setTimeout(runVaTask, 500);
+					}
+					return;
+				}
+
+				if (insideFrontInterface.chatSettings.chatSettingsId != chatThemeIdToSetTheme) {
+					//reconnect to get theme changes
+					_insideGraph.jQuery.inside.connection.stop();
+					setTimeout(function () {
+						_insideGraph.jQuery.inside.start();
+					}, 1000);
+				}
+			}, function () { });
+		}
+
+	}
+
+	_insideGraph.bind("closechat", endChatCheck);
+	$.inside.bind("chat", chatReceived);
+
+	function chatReceived(data) {
+		var messages = data.messages || [];
+		if (data.message)
+			messages.push(data.message);
+		if (messages.length == 1 && messages[0].text === "/stopchat") {
+			endChatCheck();
+		}
+	}
+
+	let reconnectingOnEndChat = false;
+	function endChatCheck() {
+		if (endingChatAndStartingVA) return;
+		if (reconnectingOnEndChat) {
+			setTimeout(function () {
+				reconnectingOnEndChat = false;
+			}, 1000);
+			return;
+		}
+
+		if (insideFrontInterface.chatSettings.chatSettingsId == chatThemeIdToSetTheme) {
+			//trigger event to set remove the flag
+			insideFrontInterface.triggerVisitorEvent(eventNameToRemoveFlag, function () {
+				_insideGraph.jQuery.inside.connection.stop();
+				reconnectingOnEndChat = true;
+				setTimeout(function () {
+					_insideGraph.jQuery.inside.start();
+				}, 1000);
+			});
+		}
+	}
+
+}(_insideGraph.jQuery)

@@ -1,0 +1,48 @@
+/* set INSIDE below cart, but above other page elements */
+#inside_holder, .chatPaneOpen #insideChatFrame, #inside_tabs {z-index: 1000!important;}
+
+.inside_visitorNotify {
+    background: white !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);    border-bottom: 6px solid rgb(51, 51, 51);
+}
+
+#insideSurveyCheckMessage h3 {
+    font-weight: normal;
+}
+
+#insideSurveyHolder {
+    padding: 50px 50px 0 30px !important;
+}
+
+/* set bottom margin and max height of pane on desktop */
+
+@media (min-width: 1025px) {
+
+/*iframe#insideChatFrame {
+ top: calc(var(--inside-pane-top, 0px) - var(--inside-pane-offset-bottom, 10px));
+} */
+
+ iframe#insideChatFrame {
+    max-height: calc(100vh - 120px) !important;
+    top: calc(var(--inside-pane-top) - 10px) !important;
+    min-height: 372px;
+}
+}
+
+
+/* enforce custom chat tab size */
+
+#inside_liveChatTab { width: 60px !important; right: 60px !important;
+}
+img.inside_chatTabImage { width: 60px !important; height: 60px !important;
+}
+
+/* show different tab if only Bot */
+.botavailable #inside_liveChatTab {
+    background: url(https://cdn14.au.inside.chat/custom/2-jb-hifi-tab-help-available.png?123456) no-repeat;
+    background-size: contain;
+}
+
+.botavailable img.inside_chatTabImage { opacity: 0; }

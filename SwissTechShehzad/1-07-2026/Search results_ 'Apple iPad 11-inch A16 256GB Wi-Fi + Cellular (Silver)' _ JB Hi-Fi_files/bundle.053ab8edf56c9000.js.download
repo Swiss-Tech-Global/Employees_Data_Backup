@@ -1,0 +1,285 @@
+"use strict";(globalThis.rspackChunkshopify_theme=globalThis.rspackChunkshopify_theme||[]).push([[2620],{91047(t,e,r){r.d(e,{i:()=>f});var a=r(49579),i=r(60458);let s=`
+  id
+  totalQuantity
+  cost {
+    totalAmount {
+      amount
+      currencyCode
+    }
+    subtotalAmount {
+      amount
+      currencyCode
+    }
+  }
+  discountAllocations {
+    discountedAmount {
+      amount
+      currencyCode
+    }
+  }
+  buyerIdentity {
+    customer {
+      email
+      id
+    }
+    preferences {
+      delivery {
+        deliveryMethod
+        pickupHandle
+      }
+    }
+  }
+  attributes {
+    key
+    value
+  }
+  lines(first: 250) {
+    edges {
+      node {
+        id
+        quantity
+        discountAllocations {
+          discountedAmount {
+            amount
+            currencyCode
+          }
+        }
+        merchandise {
+          ... on ProductVariant {
+            id
+            sku
+            image {
+              url
+            }
+            product {
+              id
+              title
+              handle
+              productType
+              vendor
+              onlineProduct: metafield(namespace: "online_product", key: "value") {
+                value
+              }
+            }
+          }
+        }
+        ... on CartLine {
+          parentRelationship {
+            parent {
+              id
+            }
+          }
+        }        
+        attributes {
+          key
+          value
+        }
+        cost {
+          totalAmount {
+            amount
+            currencyCode
+          }
+          subtotalAmount {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+`;var n=r(69488),d=r(24884);class o extends a.O{_storeDomain;_storefrontApiKey;_apiVersion;_getCartId;_refreshCart;_cartTransformer;_client;constructor(t){super();const{storeDomain:e,storefrontApiKey:r,apiVersion:a="2025-10",getCartId:s,refreshCart:n,cartTransformer:d}=t;this._storeDomain=e,this._storefrontApiKey=r,this._apiVersion=a,this._refreshCart=n,this._cartTransformer=d??(t=>t),this._getCartId=async()=>{let t=s();return t||(t=await this._refreshCart()),t},this._client=(0,i.S)({storeDomain:this._storeDomain,apiVersion:this._apiVersion,publicAccessToken:this._storefrontApiKey,customFetchApi:fetch})}async _fetchGql(t,e){let r=await this._client.fetch(t,{variables:e});return await r.json()}getStore=async(t,e)=>{try{let r,a=`
+        query getLocations($latitude: Float!, $longitude: Float!) {
+          locations(first: 5, near: { latitude: $latitude, longitude: $longitude }, sortKey: DISTANCE) {
+            nodes {
+              id
+              name
+              storeId: metafield(namespace: "jbhifi", key: "storeId") {
+                value
+              }
+            }
+          }
+        }
+      `,i={latitude:e.latitude,longitude:e.longitude},s=await this._fetchGql(a,i);return s?.data.locations.nodes.length&&(r=s.data.locations.nodes.find(e=>e.storeId?.value===t.toString())),r}catch(t){console.error(t)}};setPreferredStore=async t=>{let e=await this._getCartId(),r=`
+      query cartDeliveryMethod {
+        cart(id: "gid://shopify/Cart/${e}") {
+          buyerIdentity {
+            preferences {
+              delivery {
+                deliveryMethod
+                pickupHandle
+              }
+            }
+          }
+        }
+      }
+    `,a=`
+        mutation cartBuyerIdentityUpdate {
+          cartBuyerIdentityUpdate(
+            cartId: "gid://shopify/Cart/${e}"
+            buyerIdentity: {
+              preferences: {
+                delivery: {
+                  pickupHandle: [
+                    "${t}"
+                  ]
+                  deliveryMethod: [
+                    PICK_UP
+                  ]
+                }
+              }
+            },
+          )
+        {
+          cart {
+            buyerIdentity {
+              preferences {
+                delivery {
+                  deliveryMethod
+                  pickupHandle
+                }
+              }
+            }
+          } 
+          userErrors {
+              field
+              code
+              message
+          }
+        }
+      }
+    `;try{let t=await this._fetchGql(r),e=t.data?.cart?.buyerIdentity.preferences?.delivery?.deliveryMethod?.[0];if(t.data?.cart&&!(e&&"PICK_UP"!==e))return await this._fetchGql(a);return t}catch(t){console.error("Error updating cart attributes:",t);return}};getProductByHandle=async t=>{try{let e=`
+        query productByHandle {
+          product(handle: "${t}") {
+            id
+            handle
+            variants(first:100) {
+              nodes {
+                id
+                sku
+                price {
+                  amount 
+                }
+              }
+            }
+          }
+        }
+      `,r=await this._fetchGql(e);return r?.data?.product}catch(t){console.error(t)}};setCartAttributes=async(t,e)=>{let r=`
+      mutation cartAttributesUpdate ($cartId: ID!, $attributes: [AttributeInput!]!) {
+        cartAttributesUpdate(cartId: $cartId, attributes: $attributes) {
+          cart {
+            ${s}
+          }
+          userErrors {
+            field
+            code
+            message
+          }
+        }
+      }
+    `,a=await this._getCartId(),i={cartId:`gid://shopify/Cart/${a}`,attributes:(0,n.p)({...t,...e})};try{let t=await this._fetchGql(r,i);return this._cartTransformer(t.data.cartAttributesUpdate.cart)}catch(t){console.error("Error updating cart attributes:",t);return}};getCart=async()=>{let t=await this._getCartId();return await this._getExistingCart(t)};addToCart=async(t,e=1,r,a)=>{let i=await this._getCartId();return await this._addToExistingCart(i,[{variantId:t,quantity:e,attributes:r,parentId:a}])};addMultipleToCart=async t=>{let e=await this._getCartId();return await this._addToExistingCart(e,t)};removeFromCart=async t=>{let e=await this._getCartId(),r=Array.isArray(t)?t:[t],a=`
+      mutation cartLinesRemove($cartId: ID!, $lineIds: [ID!]!) {
+        cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
+          cart {
+            ${s}
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `,i={cartId:`gid://shopify/Cart/${e}`,lineIds:r.map(t=>`gid://shopify/CartLine/${t}`)};try{let t=await this._fetchGql(a,i);return this._cartTransformer(t.data.cartLinesRemove.cart)}catch(t){console.error("Error removing item from cart:",t);return}};updateCartLines=async t=>{let e=await this._getCartId(),r=`
+      mutation cartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+        cartLinesUpdate(cartId: $cartId, lines: $lines) {
+          cart {
+            ${s}
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `,a={cartId:`gid://shopify/Cart/${e}`,lines:t.map(t=>({id:`gid://shopify/CartLine/${t.lineId}`,quantity:t.quantity,attributes:t.attributes,...t.parentId&&{parent:{lineId:`gid://shopify/CartLine/${t.parentId}`}}}))};try{let t=await this._fetchGql(r,a);return this._cartTransformer(t.data.cartLinesUpdate.cart)}catch(t){console.error("Error updating item in cart:",t);return}};updateCartLine=async(t,e,r)=>await this.updateCartLines([{lineId:t,quantity:e,attributes:r}]);_getExistingCart=async t=>{let e=`
+          query getCart($cartId: ID!) {
+            cart(id: $cartId) {
+              ${s}
+            }
+          }
+        `,r={cartId:`gid://shopify/Cart/${t}`};try{let t=await this._fetchGql(e,r);return this._cartTransformer(t.data.cart)}catch(t){throw console.error("Error fetching cart:",t),t}};nestCartLines=async t=>{let e=await this._getCartId(),r=t.map(t=>t.lineId),a=t.map(t=>({attributes:t.attributes,merchandiseId:`gid://shopify/ProductVariant/${t.variantId}`,quantity:t.quantity,parent:{lineId:`gid://shopify/CartLine/${t.parentId}`}})),i=`
+      mutation cartLinesNest($cartId: ID!, $lineIds: [ID!]!, $lines: [CartLineInput!]!) {
+        cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
+          cart {
+            ${s}
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+        cartLinesAdd(cartId: $cartId, lines: $lines) {
+          cart {
+            ${s}
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `,n={cartId:`gid://shopify/Cart/${e}`,lineIds:r.map(t=>`gid://shopify/CartLine/${t}`),lines:a};try{let t=await this._fetchGql(i,n);if(t.data.cartLinesRemove.userErrors?.length)return console.error("Error removing cart lines before reapplying",t.data.cartLinesRemove.userErrors),{cart:void 0,userErrors:t.data.cartLinesRemove.userErrors};if(t.data.cartLinesAdd.userErrors?.length)return console.error("Error reapplying nested cart lines",t.data.cartLinesAdd.userErrors),{cart:t.data.cartLinesRemove.cart?this._cartTransformer(t.data.cartLinesRemove.cart):void 0,userErrors:t.data.cartLinesAdd.userErrors};return{cart:t.data.cartLinesAdd.cart?this._cartTransformer(t.data.cartLinesAdd.cart):void 0}}catch(t){return console.error("Error nesting lines:",t),{}}};_addToExistingCart=async(t,e)=>{let r=`
+      mutation cartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+        cartLinesAdd(cartId: $cartId, lines: $lines) {
+          cart {
+            ${s}
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `,a={cartId:`gid://shopify/Cart/${t}`,lines:e.map(t=>({attributes:[...t.attributes||[],{key:"_shouldSplit",value:(0,d.A)()}],quantity:t.quantity,merchandiseId:`gid://shopify/ProductVariant/${t.variantId}`,...t.parentId&&{parent:{lineId:`gid://shopify/CartLine/${t.parentId}`}}}))};try{let t=await this._fetchGql(r,a);return this._cartTransformer(t.data.cartLinesAdd.cart)}catch(t){console.error("Error adding item to cart:",t);return}};getSellerMetaobjectById=async t=>{try{let e=`
+        query metaobjectQuery {
+          metaobject(handle: { handle:"${t}", type: "seller"}) {
+            seller_id: field(key: "seller_id") { value }
+            name: field(key: "name") { value }
+            url_handle: field(key: "url_handle") { value }
+            is_digital_invoice_provided: field(key: "is_digital_invoice_provided") { value }
+          }
+        }
+      `,r=await this._fetchGql(e);return r?.data?.metaobject}catch(t){console.error(t)}};getProductsByVariantId=async t=>{let e=t?.filter(t=>!!t).map(t=>`${t}`.match(/\D/g)?t:`gid://shopify/ProductVariant/${t}`);try{let t=`
+          query getProductsByVariantId($ids: [ID!]!) {
+            nodes(ids: $ids) {
+              ... on ProductVariant {
+                id
+                product {
+                  handle
+                  metafield(namespace: "online_product", key: "value") {
+                    value
+                  }
+                }
+              }
+            }
+          }
+        `,r=await this._fetchGql(t,{ids:e}),a=(r?.data?.nodes||[]).filter(t=>!!t?.product?.metafield).map(t=>({metafields:{onlineProduct:JSON.parse(t.product.metafield.value)},handle:t.product.handle,id:t.id}));return{data:{products:e.map(t=>a.find(e=>[t].includes(e.id))).filter(t=>!!t)},statusCode:200}}catch(t){return console.error(t),{data:{products:[]},statusCode:500,error:{message:`Error fetching products from shopify with variant ids: ${t}`}}}};getProductHandlesBySku=async t=>{try{let e=`
+        query searchProducts($query: String!, $first: Int) {
+          search(query: $query, first: $first, types: PRODUCT) {
+            edges {
+              node {
+                ... on Product {
+                  id
+                  handle
+                  variants(first: 1) {
+                    edges {
+                      node {
+                        sku
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,r=await this._fetchGql(e,{query:`variants.sku:${t.join(" OR ")}`,first:t.length}),a=(r?.data?.search.edges||[]).filter(t=>t?.node?.variants.edges?.length).map(t=>({handle:t.node.handle,id:t.node.id,sku:t.node.variants.edges[0].node.sku}));return{data:{products:t.map(t=>a.find(e=>e.sku===t)).filter(t=>void 0!==t)},statusCode:200}}catch(t){return console.error(t),{data:{products:[]},statusCode:500,error:{message:`Error fetching products from shopify with skus: ${t}`}}}}}var c=r(84698),l=r(47619),u=r(45801),p=r(53240);let h=t=>Math.round(100*parseFloat(t)),y=t=>{if(!t)return;let e=t.attributes.reduce((t,e)=>(t[e.key]=e.value,t),{}),r=(0,l.B)(e._cartDiscounts);r?.forEach(t=>{t.formattedAmount=(0,u.u)(t.amount)});let a=(0,l.B)(e._basketSerial)??[],i=t.lines.edges.map((t,e)=>{let r=t.node,i=r.merchandise,s=i.product,n={};r.attributes.forEach(t=>{n[t.key]=t.value});let d=i.id.split("/").pop()??"",o=s.id.split("/").pop()??"",c=r.id.split("/").pop()??"",u=h(r.cost.totalAmount.amount),p=h(r.cost.subtotalAmount.amount),y=a?.filter(t=>t.promoId===c),f=0===r.quantity,m="true"===n._isAttachedService,g=m&&"true"===n._hasServiceErrors,_="Gift Card"===s.productType,I=_?"gift-card-digital-500":s.handle,v=r.parentRelationship?.parent.id.split("/").pop()??void 0;return{id:d,cartIndex:e+1,variant_id:d,line_id:c,key:c,handle:I,url:`${window.location.origin}/products/${I}`,sku:i.sku,image:i.image?.url,quantity:r.quantity||1,product_id:o,product_title:s.title,product_type:s.productType,vendor:s.vendor,line_price:u,original_line_price:p,final_line_price:u,discounts:y,isNoLongerAvailable:f,isValidService:!g,hide:m,isGiftCard:_,properties:n,onlineProduct:(0,l.B)(i.product?.onlineProduct?.value),parent_line_id:v}}),s=h(t.cost.totalAmount.amount),n=h(t.cost.subtotalAmount.amount),d=t.discountAllocations.reduce((t,e)=>t+h(e.discountedAmount.amount),0);return i.forEach(t=>{if("true"===t.properties._isAttachedService)return;let e=i.filter(e=>"true"===e.properties._isAttachedService&&e.properties?._serviceLink===t.properties._serviceLink);if(!e.length)return;let r=e.find(t=>t.properties._serviceType!==p.Ek.Install)??e[0];r&&(t.attachedService=r)}),{items:i,id:t.id.split("gid://shopify/Cart/")[1],item_count:t.totalQuantity,total_price:s,original_total_price:n,total_discount:d,cartDiscounts:r,attributes:e,preferredStore:t.buyerIdentity?.preferences?.delivery?.pickupHandle?.[0]}};class f extends o{constructor(){super({storeDomain:"prod-jbhifi.myshopify.com",storefrontApiKey:"96cf63cd5628a04167f6cbff19e89167",apiVersion:"2025-10",getCartId:()=>c.A.get("cart"),refreshCart:f.refreshCart,cartTransformer:y})}static refreshCart=async()=>{let t=await fetch("/cart/update.js");return(await t.json()).token}}},45801(t,e,r){r.d(e,{u:()=>a});let a=(t,e=!0)=>"number"!=typeof t?"":new Intl.NumberFormat("en-AU",{style:"currency",currency:"AUD",minimumFractionDigits:2*!!e,currencyDisplay:"symbol"}).format(t).replace(/[a-zA-Z]/,"")},53240(t,e,r){r.d(e,{Ek:()=>s,UB:()=>a,Uq:()=>d,gA:()=>o,np:()=>n});let a="JB Hi-Fi Extra Care";var i,s=((i={}).AppleCareNz="apple-care-nz",i.MobileExtras="mobile-extras",i.ExtraCare="extended-care",i.ExtraCareNz="extended-care-nz",i.Install="install",i);let n="7800500",d="/pages/help-and-support/jb-hi-fi-installation-terms-and-conditions",o="/pages/tv-mounting"},69488(t,e,r){r.d(e,{p:()=>a});let a=t=>Object.entries(t).map(([t,e])=>({key:t,value:e?.toString()})).filter(t=>t.value)},47619(t,e,r){r.d(e,{B:()=>a});let a=t=>{if(t)try{return JSON.parse(t)}catch(t){return}}}}]);
